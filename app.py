@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from datetime import datetime
 import os
 
-app = Flask(__name__)
+app = Flask(_name_)
 app.config['SECRET_KEY'] = "nsrit_smart_hms_2026"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///smart_hms.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -13,21 +13,20 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# --- MODELS ---
+# --- DATABASE SCHEMA (3 RELATED TABLES) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    role = db.Column(db.String(20)) # 'admin', 'doctor', 'patient'
+    role = db.Column(db.String(20)) # admin, doctor, patient
 
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_custom_id = db.Column(db.String(30), unique=True)
+    patient_custom_id = db.Column(db.String(30), unique=True) # NSR-HMS-2026-0001
     name = db.Column(db.String(100))
     age = db.Column(db.Integer)
     gender = db.Column(db.String(10))
     address = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     consultations = db.relationship('Consultation', backref='patient', lazy=True)
 
 class Consultation(db.Model):
@@ -37,10 +36,6 @@ class Consultation(db.Model):
     diagnosis = db.Column(db.Text)
     notes = db.Column(db.Text)
     date = db.Column(db.DateTime, default=datetime.utcnow)
-
-def generate_patient_id():
-    count = Patient.query.count()
-    return f"NSR-HMS-2026-{count + 1:04d}"
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -54,11 +49,38 @@ with app.app_context():
         db.session.add(User(username="patient1", password="password123", role="patient"))
         db.session.commit()
 
-# --- ROUTES ---
-@app.route("/")
-def home():
-    return render_template("home.html")
+# --- DASHBOARD LOGIC ---
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    if current_user.role == 'admin':
+        return render_template("admin_dash.html", patients=Patient.query.all())
+    elif current_user.role == 'doctor':
+        # This ensures the doctor can actually see the patient list
+        return render_template("doctor_dash.html", patients=Patient.query.all())
+    else:
+        p_record = Patient.query.filter_by(name=current_user.username).first()
+        return render_template("patient_dash.html", patient=p_record)
 
+# --- THE FIX: CONSULTATION ROUTE ---
+@app.route("/consultation/<int:patient_id>", methods=["GET", "POST"])
+@login_required
+def consultation(patient_id):
+    patient = Patient.query.get_or_404(patient_id) # Finds the specific patient
+    if request.method == "POST":
+        # Combines diagnosis, medicines, and date into one record
+        new_c = Consultation(
+            patient_id=patient.id,
+            doctor_name=current_user.username,
+            diagnosis=request.form.get("diagnosis"),
+            notes=f"Prescription: {request.form.get('notes')} | Follow-up: {request.form.get('follow_up')}"
+        )
+        db.session.add(new_c)
+        db.session.commit()
+        return redirect(url_for("dashboard"))
+    return render_template("consultation.html", patient=patient)
+
+# --- OTHER ROUTES ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -68,48 +90,23 @@ def login():
             return redirect(url_for("dashboard"))
     return render_template("login.html")
 
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    if current_user.role == 'admin':
-        return render_template("admin_dash.html", patients=Patient.query.all())
-    elif current_user.role == 'doctor':
-        return render_template("doctor_dash.html", patients=Patient.query.all())
-    else:
-        p_record = Patient.query.filter_by(name=current_user.username).first()
-        return render_template("patient_dash.html", patient=p_record)
-
 @app.route("/register_patient", methods=["GET", "POST"])
 @login_required
 def register_patient():
-    if current_user.role != 'admin': return "Denied", 403
     if request.method == "POST":
-        p = Patient(patient_custom_id=generate_patient_id(), name=request.form.get("name"), 
-                    age=request.form.get("age"), gender=request.form.get("gender"), 
-                    address=request.form.get("address"))
+        count = Patient.query.count()
+        new_id = f"NSR-HMS-2026-{count + 1:04d}"
+        p = Patient(patient_custom_id=new_id, name=request.form.get("name"), 
+                    age=request.form.get("age"), gender=request.form.get("gender"))
         db.session.add(p)
         db.session.commit()
         return redirect(url_for("dashboard"))
     return render_template("register.html")
 
-@app.route("/consultation/<int:patient_id>", methods=["GET", "POST"])
-@login_required
-def consultation(patient_id):
-    p = Patient.query.get_or_404(patient_id)
-    if request.method == "POST":
-        # Combines the notes and follow-up for a complete prescription view
-        notes_with_date = f"{request.form.get('notes')}\n\nFollow-up: {request.form.get('follow_up')}"
-        c = Consultation(patient_id=p.id, doctor_name=current_user.username,
-                         diagnosis=request.form.get("diagnosis"), notes=notes_with_date)
-        db.session.add(c)
-        db.session.commit()
-        return redirect(url_for("dashboard"))
-    return render_template("consultation.html", patient=p)
-
 @app.route("/logout")
 def logout():
-    logout_user(); return redirect(url_for("home"))
+    logout_user(); return redirect(url_for("login"))
 
-if __name__ == "__main__":  
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)

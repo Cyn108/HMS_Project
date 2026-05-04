@@ -12,7 +12,6 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# ---------- MODELS ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     role = db.Column(db.String(20))
@@ -30,16 +29,13 @@ class Patient(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# ---------- DATABASE INIT ----------
 with app.app_context():
     db.create_all()
-    # Create admin if it doesn't exist
     if not User.query.filter_by(username="admin").first():
         admin = User(username="admin", password="password123", role="admin")
         db.session.add(admin)
         db.session.commit()
 
-# ---------- ROUTES ----------
 @app.route("/")
 def home():
     return render_template("home.html")
@@ -47,10 +43,8 @@ def home():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form.get('username')
-        password = request.form.get('password')
-        u = User.query.filter_by(username=username).first()
-        if u and u.password == password:
+        u = User.query.filter_by(username=request.form.get('username')).first()
+        if u and u.password == request.form.get('password'):
             login_user(u)
             return redirect(url_for("dashboard"))
         flash("Invalid credentials")
@@ -65,15 +59,10 @@ def dashboard():
 @login_required
 def register_patient():
     if request.method == "POST":
-        p = Patient(
-            name=request.form.get("name"),
-            age=request.form.get("age"),
-            gender=request.form.get("gender"),
-            illness=request.form.get("illness")
-        )
+        p = Patient(name=request.form.get("name"), age=request.form.get("age"),
+                    gender=request.form.get("gender"), illness=request.form.get("illness"))
         db.session.add(p)
         db.session.commit()
-        flash("Patient Registered")
         return redirect(url_for("dashboard"))
     return render_template("register.html")
 

@@ -2,44 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medical Consultation | NSR-HMS</title>
+    <title>Doctor Console | NSR-HMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .card { border-radius: 15px; border: none; }
-        .btn-medical { background-color: #00897b; color: white; }
+        body { background-color: #f0f4f8; }
+        .medical-card { border-radius: 15px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .btn-save { background-color: #00796b; color: white; }
     </style>
 </head>
 <body>
-
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-8">
-            <div class="card shadow-lg">
-                <div class="card-header bg-dark text-white p-3">
-                    <h4 class="mb-0">Consultation Form</h4>
+            <div class="card medical-card">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0">Patient Consultation: {{ patient.name }}</h5>
+                    <small>ID: {{ patient.patient_custom_id }}</small>
                 </div>
                 <div class="card-body p-4">
-                    <div class="alert alert-info">
-                        <strong>Patient:</strong> {{ patient.name }} <br>
-                        <strong>ID:</strong> {{ patient.patient_custom_id }} | <strong>Age:</strong> {{ patient.age }}
-                    </div>
-                    
                     <form method="POST">
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Diagnosis / Assessment</label>
-                            <input type="text" name="diagnosis" class="form-control" placeholder="Enter disease name" required>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Diagnosis / Illness</label>
+                            <input type="text" name="diagnosis" class="form-control" placeholder="e.g., Seasonal Flu, Malaria" required>
                         </div>
                         
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Prescription & Clinical Notes</label>
-                            <textarea name="notes" class="form-control" rows="6" placeholder="Instructions, medicines, and follow-up..."></textarea>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Prescription (Medicines & Dosage)</label>
+                            <textarea name="notes" class="form-control" rows="6" placeholder="1. Paracetamol - 500mg - Twice a day&#10;2. Vitamin C - Once a day" required></textarea>
+                        </div>
+
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Follow-up Date</label>
+                                <input type="date" name="follow_up" class="form-control">
+                            </div>
                         </div>
 
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-medical btn-lg">Submit Final Record</button>
-                            <a href="{{ url_for('dashboard') }}" class="btn btn-light">Cancel</a>
+                            <button type="submit" class="btn btn-save btn-lg">Save & Issue Prescription</button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
                         </div>
                     </form>
                 </div>
@@ -47,6 +48,5 @@
         </div>
     </div>
 </div>
-
 </body>
 </html>

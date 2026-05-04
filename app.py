@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from datetime import datetime
 import os
 
-app = Flask(_name_)
+app = Flask(__name__)
 app.config['SECRET_KEY'] = "nsrit_smart_hms_2026"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///smart_hms.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -110,6 +110,6 @@ def consultation(patient_id):
 def logout():
     logout_user(); return redirect(url_for("home"))
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)

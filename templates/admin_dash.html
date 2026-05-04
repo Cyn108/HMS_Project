@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | NSR-HMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; }
+        .navbar { background: linear-gradient(45deg, #2c3e50, #34495e); }
+        .sidebar-card { border-radius: 15px; border: none; transition: 0.3s; }
+        .sidebar-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark shadow-sm mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">NSR-HMS 2026</a>
+        <div class="ms-auto text-light">
+            <span class="badge bg-primary me-2">Role: Admin</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2 class="fw-bold text-dark">Reception Control Panel</h2>
+            <p class="text-muted">Manage patient registrations and hospital records.</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('register_patient') }}" class="btn btn-success shadow-sm btn-lg">+ New Registration</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card sidebar-card shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0">Recent Registrations</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Patient ID</th>
+                                    <th>Full Name</th>
+                                    <th>Age</th>
+                                    <th>Gender</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in patients %}
+                                <tr>
+                                    <td><code class="fw-bold">{{ p.patient_custom_id }}</code></td>
+                                    <td>{{ p.name }}</td>
+                                    <td>{{ p.age }}</td>
+                                    <td>{{ p.gender }}</td>
+                                    <td><span class="badge rounded-pill bg-success">Admitted</span></td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">No patient records found. Start by registering a new patient!</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

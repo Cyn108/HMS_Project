@@ -1,41 +1,62 @@
 from flask import Flask, render_template, redirect, url_for, request, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = "secret123"
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///hms.db"
+app.config['SECRET_KEY'] = "hackfest_secret_2026"
+app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///hms_smart.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
+# --- RELATIONAL MODELS ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    role = db.Column(db.String(20))
     username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(50))
+    password = db.Column(db.String(100))
+    role = db.Column(db.String(20)) # 'admin', 'doctor', 'patient'
 
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    patient_custom_id = db.Column(db.String(30), unique=True) # NSR-HMS-2026-XXXX
     name = db.Column(db.String(100))
     age = db.Column(db.Integer)
     gender = db.Column(db.String(10))
-    illness = db.Column(db.String(200))
+    address = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Consultation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
+    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    diagnosis = db.Column(db.Text)
+    notes = db.Column(db.Text)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
+# --- HELPER: UNIQUE ID GENERATOR ---
+def generate_patient_id():
+    count = Patient.query.count()
+    return f"NSR-HMS-2026-{count + 1:04d}"
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# --- DATABASE INIT ---
 with app.app_context():
     db.create_all()
+    # Create default Admin and Doctor for testing
     if not User.query.filter_by(username="admin").first():
         admin = User(username="admin", password="password123", role="admin")
-        db.session.add(admin)
+        doc = User(username="doctor1", password="docpassword", role="doctor")
+        db.session.add_all([admin, doc])
         db.session.commit()
 
+# --- ROUTES ---
 @app.route("/")
 def home():
     return render_template("home.html")
@@ -47,27 +68,43 @@ def login():
         if u and u.password == request.form.get('password'):
             login_user(u)
             return redirect(url_for("dashboard"))
-        flash("Invalid credentials")
+        flash("Invalid Credentials")
     return render_template("login.html")
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    return render_template("dashboard.html")
+    # Role-based dashboard redirection
+    if current_user.role == 'admin':
+        patients = Patient.query.all()
+        return render_template("admin_dash.html", patients=patients)
+    elif current_user.role == 'doctor':
+        return render_template("doctor_dash.html")
+    else:
+        return render_template("patient_dash.html")
 
 @app.route("/register_patient", methods=["GET", "POST"])
 @login_required
 def register_patient():
+    if current_user.role != 'admin':
+        return "Access Denied", 403
+    
     if request.method == "POST":
-        p = Patient(name=request.form.get("name"), age=request.form.get("age"),
-                    gender=request.form.get("gender"), illness=request.form.get("illness"))
+        new_id = generate_patient_id()
+        p = Patient(
+            patient_custom_id=new_id,
+            name=request.form.get("name"),
+            age=request.form.get("age"),
+            gender=request.form.get("gender"),
+            address=request.form.get("address")
+        )
         db.session.add(p)
         db.session.commit()
+        flash(f"Patient Registered with ID: {new_id}")
         return redirect(url_for("dashboard"))
     return render_template("register.html")
 
 @app.route("/logout")
-@login_required
 def logout():
     logout_user()
     return redirect(url_for("home"))

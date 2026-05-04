@@ -4,7 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from datetime import datetime
 import os
 
-app = Flask(_name_)
+app = Flask(__name__)
 app.config['SECRET_KEY'] = "nsrit_smart_hms_2026"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///smart_hms.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

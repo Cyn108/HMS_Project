@@ -5,39 +5,40 @@ from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = "hackfest_secret_2026"
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///hms_smart.db"
+app.config['SECRET_KEY'] = "nsrit_smart_hms_2026"
+app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///smart_hms.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
-# --- RELATIONAL MODELS ---
+# --- RELATIONAL DATABASE SCHEMA ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(100))
+    password = db.Column(db.String(100)) # In a real app, use hashing
     role = db.Column(db.String(20)) # 'admin', 'doctor', 'patient'
 
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_custom_id = db.Column(db.String(30), unique=True) # NSR-HMS-2026-XXXX
+    patient_custom_id = db.Column(db.String(30), unique=True)
     name = db.Column(db.String(100))
     age = db.Column(db.Integer)
     gender = db.Column(db.String(10))
     address = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    consultations = db.relationship('Consultation', backref='patient', lazy=True)
 
 class Consultation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
-    doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), nullable=False)
+    doctor_name = db.Column(db.String(100))
     diagnosis = db.Column(db.Text)
     notes = db.Column(db.Text)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
-# --- HELPER: UNIQUE ID GENERATOR ---
+# --- UTILITY FUNCTIONS ---
 def generate_patient_id():
     count = Patient.query.count()
     return f"NSR-HMS-2026-{count + 1:04d}"
@@ -46,14 +47,13 @@ def generate_patient_id():
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- DATABASE INIT ---
+# --- DB INIT & TEST ACCOUNTS ---
 with app.app_context():
     db.create_all()
-    # Create default Admin and Doctor for testing
     if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", password="password123", role="admin")
-        doc = User(username="doctor1", password="docpassword", role="doctor")
-        db.session.add_all([admin, doc])
+        db.session.add(User(username="admin", password="password123", role="admin"))
+        db.session.add(User(username="doctor1", password="docpassword", role="doctor"))
+        db.session.add(User(username="patient1", password="password123", role="patient"))
         db.session.commit()
 
 # --- ROUTES ---
@@ -74,40 +74,45 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    # Role-based dashboard redirection
     if current_user.role == 'admin':
-        patients = Patient.query.all()
-        return render_template("admin_dash.html", patients=patients)
+        return render_template("admin_dash.html", patients=Patient.query.all())
     elif current_user.role == 'doctor':
-        return render_template("doctor_dash.html")
+        return render_template("doctor_dash.html", patients=Patient.query.all())
     else:
-        return render_template("patient_dash.html")
+        # Link logged-in username to a patient record
+        p_record = Patient.query.filter_by(name=current_user.username).first()
+        return render_template("patient_dash.html", patient=p_record)
 
 @app.route("/register_patient", methods=["GET", "POST"])
 @login_required
 def register_patient():
-    if current_user.role != 'admin':
-        return "Access Denied", 403
-    
+    if current_user.role != 'admin': return "Access Denied", 403
     if request.method == "POST":
         new_id = generate_patient_id()
-        p = Patient(
-            patient_custom_id=new_id,
-            name=request.form.get("name"),
-            age=request.form.get("age"),
-            gender=request.form.get("gender"),
-            address=request.form.get("address")
-        )
+        p = Patient(patient_custom_id=new_id, name=request.form.get("name"), 
+                    age=request.form.get("age"), gender=request.form.get("gender"), 
+                    address=request.form.get("address"))
         db.session.add(p)
         db.session.commit()
-        flash(f"Patient Registered with ID: {new_id}")
         return redirect(url_for("dashboard"))
     return render_template("register.html")
 
+@app.route("/consultation/<int:patient_id>", methods=["GET", "POST"])
+@login_required
+def consultation(patient_id):
+    if current_user.role != 'doctor': return "Access Denied", 403
+    p = Patient.query.get_or_404(patient_id)
+    if request.method == "POST":
+        c = Consultation(patient_id=p.id, doctor_name=current_user.username,
+                         diagnosis=request.form.get("diagnosis"), notes=request.form.get("notes"))
+        db.session.add(c)
+        db.session.commit()
+        return redirect(url_for("dashboard"))
+    return render_template("consultation.html", patient=p)
+
 @app.route("/logout")
 def logout():
-    logout_user()
-    return redirect(url_for("home"))
+    logout_user(); return redirect(url_for("home"))
 
 if __name__ == "__main__":
     app.run(debug=True)
